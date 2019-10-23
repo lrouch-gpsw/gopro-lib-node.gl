@@ -115,6 +115,10 @@ clean: clean_py
 	PKG_CONFIG_PATH=$(PREFIX)/lib/pkgconfig $(MAKE) -C libnodegl clean
 	PKG_CONFIG_PATH=$(PREFIX)/lib/pkgconfig $(MAKE) -C ngl-tools clean
 
+coverage: tests
+	mkdir -p ngl-cov
+	gcovr -r libnodegl --html-details -o ngl-cov/index.html
+
 .PHONY: all
 .PHONY: ngl-tools-install
 .PHONY: pynodegl-utils-install pynodegl-utils-deps-install
@@ -123,3 +127,4 @@ clean: clean_py
 .PHONY: sxplayer-install
 .PHONY: tests tests_libnodegl
 .PHONY: clean clean_py
+.PHONY: coverage
