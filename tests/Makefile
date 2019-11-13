@@ -21,11 +21,56 @@
 
 include ../common.mak
 
-
 all: tests
 
+# 1:category, 2:name
+define DECLARE_TEST
+test-$(1)-$(2): FUNC_NAME = $(1)_$(2)
+TESTS_$(1) += test-$(1)-$(2)
+endef
+
+# 1:category, 2:namelist
+define DECLARE_REF_TESTS
+$(foreach X,$(2),$(eval $(call DECLARE_TEST,$(1),$(X))))
+test-$(1): $$(TESTS_$(1))
+.PHONY: test-$(1)
+REF_TESTS += $$(TESTS_$(1))
+$$(TESTS_$(1)): MODULE = $(1)
+endef
+
+# 1:category, 2:namelist
+define DECLARE_SIMPLE_TESTS
+$(foreach X,$(2),$(eval $(call DECLARE_TEST,$(1),$(X))))
+test-$(1): $$(TESTS_$(1))
+.PHONY: test-$(1)
+SIMPLE_TESTS += $$(TESTS_$(1))
+$$(TESTS_$(1)): MODULE = $(1)
+endef
+
+include anim.mak
 include api.mak
+include blending.mak
+include data.mak
+include live.mak
+include media.mak
+include shape.mak
+include text.mak
+include texture.mak
+include transform.mak
+
+$(REF_TESTS):
+	@echo $@
+	@ngl-test $(MODULE).py $(FUNC_NAME) refs/$(FUNC_NAME).ref > /dev/null
+
+$(SIMPLE_TESTS):
+	@echo $@
+	@$(PYTHON) -c 'from $(MODULE) import $(FUNC_NAME); $(FUNC_NAME)()' #> /dev/null
+
+TESTS = $(SIMPLE_TESTS) $(REF_TESTS)
 
 tests: $(TESTS)
 
-.PHONY: all tests
+tests-list:
+	@for test in $(TESTS); do echo $$test; done
+
+.PHONY: all tests tests-list $(TESTS)

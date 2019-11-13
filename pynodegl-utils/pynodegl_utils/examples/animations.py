@@ -4,6 +4,8 @@ import math
 import random
 import pynodegl as ngl
 from pynodegl_utils.misc import scene
+from pynodegl_utils.toolbox.easings import easing_split, easing_list, easing_names
+from pynodegl_utils.toolbox.grid import AutoGrid
 
 
 def _block(w, h, program, corner=None, **uniforms):
@@ -14,17 +16,6 @@ def _block(w, h, program, corner=None, **uniforms):
     block_render = ngl.Render(block_quad, program)
     block_render.update_uniforms(**uniforms)
     return block_render
-
-
-def _easing_split(easing):
-    name_split = easing.split(':')
-    easing_name = name_split[0]
-    args = [float(x) for x in name_split[1:]] if len(name_split) > 1 else None
-    return easing_name, args
-
-
-def _easing_join(easing, args):
-    return easing if not args else easing + ':' + ':'.join('%g' % x for x in args)
 
 
 def _get_easing_node(cfg, easing, curve_zoom, color_program, nb_points=128):
@@ -67,7 +58,7 @@ def _get_easing_node(cfg, easing, curve_zoom, color_program, nb_points=128):
                                 color=normed_graph_bg_ucolor)
 
     # Curve
-    easing_name, easing_args = _easing_split(easing)
+    easing_name, easing_args = easing_split(easing)
     curve_scale_factor = graph_size / area_size * curve_zoom
     vertices_data = array.array('f')
     for i in range(nb_points + 1):
@@ -127,70 +118,22 @@ def _get_easing_node(cfg, easing, curve_zoom, color_program, nb_points=128):
     return group
 
 
-_easing_specs = (
-    ('linear',    0, 1.),
-    ('quadratic', 3, 1.),
-    ('cubic',     3, 1.),
-    ('quartic',   3, 1.),
-    ('quintic',   3, 1.),
-    ('power:7.3', 3, 1.),
-    ('sinus',     3, 1.),
-    ('exp',       3, 1.),
-    ('circular',  3, 1.),
-    ('bounce',    1, 1.),
-    ('elastic',   1, 0.5),
-    ('back',      3, 0.7),
-)
-
-
-def _get_easing_list():
-    easings = []
-    for col, (easing, flags, zoom) in enumerate(_easing_specs):
-        versions = []
-        if flags & 1:
-            versions += ['_in', '_out']
-        if flags & 2:
-            versions += ['_in_out', '_out_in']
-        if not flags:
-            versions = ['']
-
-        for version in versions:
-            base_name, args = _easing_split(easing)
-            easing_name = _easing_join(base_name + version, args)
-            easings.append((easing_name, zoom))
-    return easings
-
-
-_easing_list = _get_easing_list()
-_easing_names = [e[0] for e in _easing_list]
-
-
 def _get_easing_nodes(cfg, color_program):
-    easings = _easing_list
-    nb_easings = len(easings)
-
-    nb_rows = int(math.sqrt(nb_easings))
-    nb_cols = int(math.ceil(nb_easings / float(nb_rows)))
-
-    cfg.aspect_ratio = (nb_cols, nb_rows)
-
-    easing_h = 1. / nb_rows
-    easing_w = 1. / nb_cols
-    for row in range(nb_rows):
-        for col in range(nb_cols):
-            easing_id = row * nb_cols + col
-            if easing_id >= nb_easings:
-                return
-            easing, zoom = easings[easing_id]
-            easing_node = _get_easing_node(cfg, easing, zoom, color_program)
-            easing_node = ngl.Scale(easing_node, factors=[easing_w, easing_h, 0])
-            x = easing_w * (-nb_cols + 1 + 2 * col)
-            y = easing_h * (nb_rows - 1 - 2 * row)
-            easing_node = ngl.Translate(easing_node, vector=(x, y, 0))
-            yield easing_node
+    ag = AutoGrid(easing_list)
+    cfg.aspect_ratio = (ag.nb_cols, ag.nb_rows)
+    easing_h = 1. / ag.nb_rows
+    easing_w = 1. / ag.nb_cols
+    for easing, easing_id, col, row in ag:
+        easing_name, zoom = easing
+        easing_node = _get_easing_node(cfg, easing_name, zoom, color_program)
+        easing_node = ngl.Scale(easing_node, factors=[easing_w, easing_h, 0])
+        x = easing_w * (-ag.nb_cols + 1 + 2 * col)
+        y = easing_h * (ag.nb_rows - 1 - 2 * row)
+        easing_node = ngl.Translate(easing_node, vector=(x, y, 0))
+        yield easing_node
 
 
-@scene(easing_id=scene.List(choices=['*'] + _easing_names))
+@scene(easing_id=scene.List(choices=['*'] + easing_names))
 def easings(cfg, easing_id='*'):
     '''Display all the easings (primitive for animation / motion design) at once'''
     random.seed(0)
@@ -208,9 +151,9 @@ def easings(cfg, easing_id='*'):
             group.add_children(easing_node)
     else:
         cfg.aspect_ratio = (1, 1)
-        easing_index = _easing_names.index(easing_id)
+        easing_index = easing_names.index(easing_id)
         random.seed(easing_index)
-        easing, zoom = _easing_list[easing_index]
+        easing, zoom = easing_list[easing_index]
         easing_node = _get_easing_node(cfg, easing, zoom, color_program)
         group.add_children(easing_node)
 
