@@ -74,8 +74,11 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
 
     if (s->scene)
         ngli_node_detach_ctx(s->scene, s);
-    if (s->backend)
+
+    if (s->backend) {
         s->backend->destroy(s);
+        s->backend = NULL;
+    }
 
     if (config->backend == NGL_BACKEND_AUTO)
         config->backend = DEFAULT_BACKEND;
@@ -87,8 +90,8 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    s->backend = backend_map[config->backend];
-    LOG(INFO, "selected backend: %s", s->backend->name);
+    const struct backend *backend = backend_map[config->backend];
+    LOG(INFO, "selected backend: %s", backend->name);
 
     if (config->platform == NGL_PLATFORM_AUTO)
         config->platform = get_default_platform();
@@ -97,9 +100,12 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
         return config->platform;
     }
 
-    int ret = s->backend->configure(s, config);
-    if (ret < 0)
-        LOG(ERROR, "unable to configure %s", s->backend->name);
+    int ret = backend->configure(s, config);
+    if (ret < 0) {
+        LOG(ERROR, "unable to configure %s", backend->name);
+        return ret;
+    }
+    s->backend = backend;
 
     if (s->scene) {
         ret = ngli_node_attach_ctx(s->scene, s);
@@ -111,7 +117,7 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
         }
     }
 
-    return ret;
+    return 0;
 }
 
 struct resize_params {
