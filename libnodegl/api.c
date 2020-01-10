@@ -149,6 +149,28 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
     return ret;
 }
 
+struct resize_params {
+    int width;
+    int height;
+    const int *viewport;
+};
+
+static int cmd_resize(struct ngl_ctx *s, void *arg)
+{
+    const struct resize_params *params = arg;
+    int ret = s->backend->resize(s, params->width, params->height, params->viewport);
+    if (ret < 0) {
+        LOG(ERROR, "unable to resize backend %s", s->backend->name);
+        if (s->scene) {
+            ngli_node_detach_ctx(s->scene, s);
+            ngl_node_unrefp(&s->scene);
+        }
+        s->backend->destroy(s);
+        return ret;
+    }
+    return 0;
+}
+
 static int cmd_set_scene(struct ngl_ctx *s, void *arg)
 {
     if (s->scene) {
@@ -300,6 +322,21 @@ static int configure_ios(struct ngl_ctx *s, struct ngl_config *config)
 
     return dispatch_cmd(s, cmd_make_current, MAKE_CURRENT);
 }
+
+static int resize_ios(struct ngl_ctx *s, const struct resize_params *params)
+{
+    int ret = dispatch_cmd(s, cmd_make_current, DONE_CURRENT);
+    if (ret < 0)
+        return ret;
+
+    cmd_make_current(s, MAKE_CURRENT);
+    ret = cmd_resize(s, params);
+    if (ret < 0)
+        return ret;
+    cmd_make_current(s, DONE_CURRENT);
+
+    return dispatch_cmd(s, cmd_make_current, MAKE_CURRENT);
+}
 #endif
 
 static void stop_thread(struct ngl_ctx *s)
@@ -391,6 +428,26 @@ int ngl_configure(struct ngl_ctx *s, struct ngl_config *config)
         return ret;
     s->configured = 1;
     return 0;
+}
+
+int ngl_resize(struct ngl_ctx *s, int width, int height, const int *viewport)
+{
+    if (!s->configured) {
+        LOG(ERROR, "context must be configured before resizing rendering buffers");
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    struct resize_params params = {
+        .width = width,
+        .height = height,
+        .viewport = viewport,
+    };
+
+#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
+    return resize_ios(s, config);
+#else
+    return dispatch_cmd(s, cmd_resize, &params);
+#endif
 }
 
 int ngl_set_scene(struct ngl_ctx *s, struct ngl_node *scene)

@@ -400,6 +400,51 @@ static int gl_configure(struct ngl_ctx *s, const struct ngl_config *config)
     return 0;
 }
 
+static int gl_resize(struct ngl_ctx *s, int width, int height, const int *viewport)
+{
+    struct glcontext *gl = s->glcontext;
+    struct ngl_config *config = &s->config;
+
+    const int update_dimensions = config->width != width || config->height != height;
+    config->width = width;
+    config->height = height;
+
+    if (config->offscreen) {
+        if (update_dimensions) {
+            offscreen_rendertarget_reset(s);
+            int ret = offscreen_rendertarget_init(s);
+            if (ret < 0)
+                return ret;
+        }
+
+        if (update_dimensions) {
+            capture_reset(s);
+            int ret = capture_init(s);
+            if (ret < 0)
+                return ret;
+        }
+    } else {
+        int ret = ngli_glcontext_resize(gl);
+        if (ret < 0)
+            return ret;
+    }
+
+    if (viewport && viewport[2] > 0 && viewport[3] > 0) {
+        ngli_gctx_set_viewport(s, viewport);
+        memcpy(config->viewport, viewport, sizeof(config->viewport));
+    } else {
+        struct glcontext *gl = s->glcontext;
+        const int default_viewport[] = {0, 0, gl->width, gl->height};
+        ngli_gctx_set_viewport(s, default_viewport);
+    }
+
+    const int scissor[] = {0, 0, gl->width, gl->height};
+    struct graphicconfig *graphicconfig = &s->graphicconfig;
+    memcpy(graphicconfig->scissor, scissor, sizeof(scissor));
+
+    return 0;
+}
+
 static int gl_pre_draw(struct ngl_ctx *s, double t)
 {
     ngli_gctx_clear_color(s);
@@ -444,6 +489,7 @@ const struct backend ngli_backend_gl = {
     .name         = "OpenGL",
     .reconfigure  = gl_reconfigure,
     .configure    = gl_configure,
+    .resize       = gl_resize,
     .pre_draw     = gl_pre_draw,
     .post_draw    = gl_post_draw,
     .destroy      = gl_destroy,
@@ -453,6 +499,7 @@ const struct backend ngli_backend_gles = {
     .name         = "OpenGL ES",
     .reconfigure  = gl_reconfigure,
     .configure    = gl_configure,
+    .resize       = gl_resize,
     .pre_draw     = gl_pre_draw,
     .post_draw    = gl_post_draw,
     .destroy      = gl_destroy,

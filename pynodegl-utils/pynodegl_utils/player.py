@@ -218,7 +218,8 @@ class Player(QtCore.QThread):
         with QtCore.QMutexLocker(self._mutex):
             self._width = width
             self._height = height
-            self._configure_viewer()
+            viewport = misc.get_viewport(width, height, self._aspect_ratio)
+            self._viewer.resize(width, height, viewport)
 
     def set_scene(self, cfg):
         with QtCore.QMutexLocker(self._mutex):

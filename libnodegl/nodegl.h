@@ -395,6 +395,20 @@ struct ngl_ctx *ngl_create(void);
 int ngl_configure(struct ngl_ctx *s, struct ngl_config *config);
 
 /**
+ * Resize the rendering target buffers.
+ *
+ * This function must be called on the UI/main thread on iOS and macOS.
+ *
+ * @param width new width of the rendering target buffers
+ * @param height new height of the rendering target buffers
+ * @param viewport new viewport of the rendering target,
+ *                 a NULL pointer will make the new viewport match the
+ *                 dimensions of the rendering target buffers.
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+int ngl_resize(struct ngl_ctx *s, int width, int height, const int *viewport);
+
+/**
  * Associate a scene with a node.gl context.
  *
  * The reference counter of the root node will be incremented and all its node
